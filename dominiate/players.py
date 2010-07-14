@@ -123,10 +123,7 @@ class HillClimbBot(BigMoney):
         if card is None: add = ()
         else: add = (card,)
         for coins, buys in state.simulate(self.simulation_steps, add):
-            if coins > buys*8: coins = buys*8
-            if (coins - (buys-1)*8) in (1, 7):  # there exists a useless coin
-                coins -= 1
-            total += coins
+            total += buying_value(coins, buys)
 
         # gold is better than it seems
         if card == c.gold: total += self.simulation_steps/2
@@ -232,10 +229,7 @@ class PairBot(HillClimbBot):
             total = 0
 
             for coins, buys in state.simulate(self.simulation_steps, add):
-                if coins > buys*8: coins = buys*8
-                if (coins - (buys-1)*8) in (1, 7):  # there exists a useless coin
-                    coins -= 1
-                total += coins
+                total += buying_value(coins, buys)
             print add, ":", total
             if total > best_total:
                 best_total = total
