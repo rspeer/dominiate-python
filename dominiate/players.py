@@ -49,11 +49,11 @@ class AIPlayer(Player):
                 print self.name, "plays", choice
         return decision.choose(choice)
 
-class LameBot(AIPlayer):
+class BigMoney(AIPlayer):
     def __init__(self, cutoff1=3, cutoff2=6):
         self.cutoff1 = cutoff1  # when to buy duchy instead of gold
         self.cutoff2 = cutoff2  # when to buy duchy instead of silver
-        self.name = 'LameBot(%d, %d)' % (self.cutoff1, self.cutoff2)
+        self.name = 'BigMoney(%d, %d)' % (self.cutoff1, self.cutoff2)
     def buy_priority_order(self, decision):
         provinces_left = decision.game.card_counts[c.province]
         if provinces_left <= self.cutoff1:
@@ -80,9 +80,9 @@ class LameBot(AIPlayer):
         else:
             return None
 
-class SmithyBot(LameBot):
+class SmithyBot(BigMoney):
     def __init__(self, cutoff1=3, cutoff2=6, cards_per_smithy=8):
-        LameBot.__init__(self, cutoff1, cutoff2)
+        BigMoney.__init__(self, cutoff1, cutoff2)
         self.cards_per_smithy = 8
         self.name = 'SmithyBot(%d, %d, %d)' % (cutoff1, cutoff2,
         cards_per_smithy)
@@ -108,9 +108,9 @@ class SmithyBot(LameBot):
         return c.smithy
 
 
-class HillClimbBot(LameBot):
+class HillClimbBot(BigMoney):
     def __init__(self, cutoff1=2, cutoff2=3, simulation_steps=100):
-        LameBot.__init__(self, cutoff1, cutoff2)
+        BigMoney.__init__(self, cutoff1, cutoff2)
         self.simulation_steps = simulation_steps
         self.name = 'HillClimbBot(%d, %d, %d)' % (cutoff1, cutoff2,
         simulation_steps)
@@ -156,11 +156,11 @@ class HillClimbBot(LameBot):
             return c.duchy
         if c.estate in choices and provinces_left <= self.cutoff1:
             return c.estate
-        return LameBot.make_buy_decision(self, decision)
+        return BigMoney.make_buy_decision(self, decision)
 
 class Contrafactus(HillClimbBot):
     def __init__(self, cutoff1, cutoff2, k):
-        LameBot.__init__(self, cutoff1, cutoff2)
+        BigMoney.__init__(self, cutoff1, cutoff2)
         self.name = "Contrafactus(%d, %d, %d)" % (cutoff1, cutoff2, k)
         self.cache = {}
         self.k = k

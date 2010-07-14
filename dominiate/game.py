@@ -58,6 +58,10 @@ silver = TreasureCard('Silver', 3, 2)
 gold   = TreasureCard('Gold', 6, 3)
 
 class PlayerState(object):
+    """
+    A PlayerState represents all the game state that is particular to a player,
+    including the number of actions, buys, and +coins they have.
+    """
     def __init__(self, player, hand, drawpile, discard, tableau, actions=0,
                  buys=0, coins=0):
         self.player = player
@@ -68,6 +72,7 @@ class PlayerState(object):
         self.drawpile = drawpile; assert isinstance(self.drawpile, tuple)
         self.discard = discard;   assert isinstance(self.discard, tuple)
         self.tableau = tableau;   assert isinstance(self.tableau, tuple)
+        # TODO: duration cards
     
     @staticmethod
     def initial_state(player):
@@ -122,19 +127,23 @@ class PlayerState(object):
             )
 
     def next_turn(self):
-        # First, discard everything. Then, draw 5 cards.
+        """
+        First, discard everything. Then, get 5 cards, 1 action, and 1 buy.
+        """
         return PlayerState(
           self.player, (), self.drawpile, self.discard+self.hand+self.tableau,
           (), actions=1, buys=1, coins=0
         ).draw(5)
 
     def gain(self, card):
+        "Gain a single card."
         return PlayerState(
           self.player, self.hand, self.drawpile, self.discard+(card,),
           self.tableau, self.actions, self.buys, self.coins
         )
     
     def gain_cards(self, cards):
+        "Gain multiple cards."
         return PlayerState(
           self.player, self.hand, self.drawpile, self.discard+cards,
           self.tableau, self.actions, self.buys, self.coins
@@ -158,9 +167,19 @@ class PlayerState(object):
         return result
     
     def play_action(self, card):
+        """
+        Play an action card, putting it in the tableau and decreasing the
+        number of actions remaining.
+
+        This does not actually put the Action into effect; the Action card
+        does that when it is chosen in an ActDecision.
+        """
         return self.play_card(card).change(delta_actions=-1)
 
     def trash_card(self, card):
+        """
+        Remove a card from the game.
+        """
         index = list(self.hand).index(card)
         newhand = self.hand[:index] + self.hand[index+1:]
         return PlayerState(
@@ -178,6 +197,11 @@ class PlayerState(object):
         return self.buys > 0
     
     def next_decision(self):
+        """
+        Return the next decision that must be made. This will be either
+        an ActDecision or a BuyDecision; other kinds of decisions only happen
+        as a result of ActDecisions.
+        """
         if self.actionable():
             return ActDecision
         elif self.buyable():
@@ -211,21 +235,38 @@ class PlayerState(object):
             coins, buys = game.simulate_turn()
             yield coins, buys
 
+# How many duchies/provinces are there for n players?
+VICTORY_CARDS = {
+    1: 5,  # useful for simulation
+    2: 8,
+    3: 12,
+    4: 12,
+    5: 15,
+    6: 18
+}
+
 class Game(object):
     def __init__(self, playerstates, card_counts, turn=0, simulated=False):
         self.playerstates = playerstates
         self.card_counts = card_counts
         self.turn = turn
         self.simulated = simulated
+
     def copy(self):
+        "Make an exact copy of this game state."
         return Game(self.playerstates[:], self.card_counts, self.turn,
                     self.simulated)
+
+    def num_players(self):
+        return len(self.playerstates)
+
     @staticmethod
     def setup(players, var_cards=()):
+        "Set up the game."
         counts = {
-            estate: 24 - 3*len(players),
-            duchy: 12,
-            province: (8 if len(players) < 3 else 12),
+            estate: VICTORY_CARDS[len(players)],
+            duchy: VICTORY_CARDS[len(players)],
+            province: VICTORY_CARDS[len(players)],
             copper: 60 - 7*len(players),
             silver: 40,
             gold: 30
@@ -236,16 +277,32 @@ class Game(object):
         playerstates = [PlayerState.initial_state(p) for p in players]
         return Game(playerstates, counts,
                     turn=random.choice(xrange(len(players))))
-    
+
+
     def state(self):
+        """
+        Get the game's state for the current player. Most methods that
+        do anything interesting need to do this.
+        """
         return self.playerstates[self.turn]
     
     def replace_current_state(self, newstate):
+        """
+        Do something with the current player's state and make a new overall
+        game state from it.
+        """
         newgame = self.copy()
         newgame.playerstates[self.turn] = newstate
         return newgame
 
     def change_current_state(self, **changes):
+        """
+        Make a numerical change to the current state, such as adding a buy
+        or using up an action. The changes are expressed as deltas from the
+        current state.
+        
+        Drawing cards, however, is done with the current_draw_cards method.
+        """
         return self.replace_current_state(self.state().change(**changes))
 
     def current_play_card(self, card):
@@ -262,6 +319,9 @@ class Game(object):
         return self.replace_current_state(self.state().play_action(card))
 
     def current_draw_cards(self, n):
+        """
+        The current player draws n cards.
+        """
         return self.replace_current_state(self.state().draw(n))
 
     def current_player(self):
@@ -271,17 +331,28 @@ class Game(object):
         return len(self.playerstates)
 
     def card_choices(self):
+        """
+        List all the cards that can currently be bought.
+        """
         choices = [card for card, count in self.card_counts.items()
                    if count > 0]
         choices.sort()
         return choices
+
     def remove_card(self, card):
+        """
+        Remove a single card from the table.
+        """
         new_counts = self.card_counts.copy()
         new_counts[card] -= 1
         assert new_counts[card] >= 0
         return Game(self.playerstates[:], new_counts, self.turn)
 
     def run_decisions(self):
+        """
+        Run through all the decisions the current player has to make, and
+        return the resulting state.
+        """
         state = self.state()
         decisiontype = state.next_decision()
         if decisiontype is None: return self
@@ -290,9 +361,15 @@ class Game(object):
         return newgame.run_decisions()
 
     def simulate_turn(self):
+        """
+        Run through all the decisions the current player has to make, and
+        return the number of coins and buys they end up with. Useful for
+        the BigMoney strategy.
+        """
         state = self.state()
         decisiontype = state.next_decision()
-        if decisiontype is None: return (0, 0)
+        if decisiontype is None:
+            assert False, "BuyDecision never happened this turn"
         if decisiontype is BuyDecision:
             return (state.hand_value(), state.buys)
         decision = decisiontype(self)
@@ -300,11 +377,16 @@ class Game(object):
         return newgame.simulate_turn()
 
     def simulate_partial_turn(self):
+        """
+        Run through all the decisions the current player has to make, and
+        return the state where the player buys stuff.
+        """
         # Like the above, but instead of returning just numbers, returns the
         # state when it's going to buy stuff.
         state = self.state()
         decisiontype = state.next_decision()
-        if decisiontype is None: return (0, 0)
+        if decisiontype is None:
+            assert False, "BuyDecision never happened this turn"
         if decisiontype is BuyDecision:
             return state
         decision = decisiontype(self)
@@ -312,27 +394,45 @@ class Game(object):
         return newgame.simulate_partial_turn()
 
     def take_turn(self):
+        """
+        Play an entire turn, including drawing cards at the end. Return
+        the game state where it is the next player's turn.
+        """
         print
         print "Player %d: %s" % ((self.turn+1), self.current_player().name)
         print " ", self.card_counts[province], "provinces left"
+        
+        # Run AI hooks that need to happen before the turn.
         self.current_player().before_turn(self)
         endturn = self.run_decisions()
+
+        # Figure out whose turn it is next.
+        # TODO: check for Outpost or Possession
         next_turn = (self.turn + 1) % self.num_players()
+
         newgame = Game(endturn.playerstates[:], endturn.card_counts,
                        next_turn)
+        # mutate the new game object since nobody cares yet
         newgame.playerstates[self.turn] =\
           newgame.playerstates[self.turn].next_turn()
+
+        # Run AI hooks that need to happen after the turn.
         self.current_player().after_turn(newgame)
         return newgame
 
     def over(self):
+        "Returns True if the game is over."
         if self.card_counts[province] == 0: return True
         zeros = 0
         for count in self.card_counts.values():
             if count == 0: zeros += 1
-        return (zeros >= 3)
+        if self.num_players() > 4: return (zeros >= 4)
+        else: return (zeros >= 3)
 
     def run(self):
+        """
+        Play a game of Dominion. Return a dictionary mapping players to scores.
+        """
         game = self
         while not game.over():
             game = game.take_turn()
