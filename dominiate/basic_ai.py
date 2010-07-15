@@ -1,5 +1,5 @@
 from collections import defaultdict
-from game import BuyDecision, ActDecision, Game
+from game import BuyDecision, ActDecision, TrashDecision, Game, TreasureCard
 from players import Player
 import cards as c
 import logging, sys
@@ -7,28 +7,33 @@ import logging, sys
 class AIPlayer(Player):
     def __init__(self):
         self.log = logging.getLogger(self.name)
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
-        handler.setFormatter(formatter)
-        self.log.addHandler(handler)
     def setLogLevel(self, level):
         self.log.setLevel(level)
     def make_decision(self, decision):
+        self.log.debug("Decision: %s" % decision)
         if isinstance(decision, BuyDecision):
             choice = self.make_buy_decision(decision)
             if not decision.game.simulated:
-                self.log.info("I buy %s" % choice)
+                self.log.info("I buy %s" % (choice))
         elif isinstance(decision, ActDecision):
             choice = self.make_act_decision(decision)
             if not decision.game.simulated:
                 self.log.info("I play %s" % choice)
+        elif isinstance(decision, TrashDecision):
+            choice = self.make_trash_decision(decision)
+            if not decision.game.simulated:
+                self.log.info("I trash %s" % choice)
+        else:
+            raise NotImplementedError
         return decision.choose(choice)
 
 class BigMoney(AIPlayer):
     def __init__(self, cutoff1=3, cutoff2=6):
         self.cutoff1 = cutoff1  # when to buy duchy instead of gold
         self.cutoff2 = cutoff2  # when to buy duchy instead of silver
-        self.name = 'BigMoney(%d, %d)' % (self.cutoff1, self.cutoff2)
+        #FIXME: names are implemented all wrong
+        if not hasattr(self, 'name'):
+            self.name = 'BigMoney(%d, %d)' % (self.cutoff1, self.cutoff2)
         AIPlayer.__init__(self)
     
     def buy_priority_order(self, decision):
@@ -53,12 +58,8 @@ class BigMoney(AIPlayer):
     
     def act_priority(self, decision, choice):
         if choice is None: return 0
-        elif isinstance(choice, c.BasicActionCard):
-            return (100*choice.actions + 10*(choice.pluscoins + choice.cards) +
-                    choice.buys)
-        else:
-            raise ValueError("what kind of action is this?")
-            return -1
+        return (100*choice.actions + 10*(choice.pluscoins + choice.cards) +
+                    choice.buys) + 1
     
     def make_act_decision(self, decision):
         choices = decision.choices()
@@ -67,9 +68,11 @@ class BigMoney(AIPlayer):
     
     def make_trash_decision(self, decision):
         choices = decision.choices()
-        if c.copper in choices:
+        deck = decision.state().all_cards()
+        money = sum([card.coins for card in deck if isinstance(card, TreasureCard)])
+        if c.copper in choices and money > 3:
             return c.copper
-        elif len(decision.deck()) < 20 and c.estate in choices:
+        elif decision.game.round < 10 and c.estate in choices:
             # TODO: judge how many turns are left in the game and whether
             # an estate is worth it
             return c.estate

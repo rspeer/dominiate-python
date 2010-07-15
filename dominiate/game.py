@@ -1,6 +1,7 @@
 import random
 import logging
 log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.WARN)
 
 class Card(object):
     """
@@ -41,10 +42,23 @@ class CurseCard(Card):
         self.vp = vp
 
 class ActionCard(Card):
-    def __init__(self, name, cost, steps):
+    def __init__(self, name, cost, steps, coins=0, cards=0, actions=0, buys=0):
         Card.__init__(self, name, cost)
         self.steps = steps
+        self.cards = cards
+        self.actions = actions
+        self.pluscoins = coins
+        self.buys = buys
+
     def perform_action(self, game):
+        if self.cards:
+            game = game.current_draw_cards(self.cards)
+        if (self.pluscoins or self.actions or self.buys):
+            game = game.change_current_state(
+              delta_coins=self.pluscoins,
+              delta_actions=self.actions,
+              delta_buys=self.buys
+            )
         for action in self.steps:
             game = action(game)
         return game
@@ -251,7 +265,7 @@ VICTORY_CARDS = {
 }
 
 class Game(object):
-    def __init__(self, playerstates, card_counts, turn=0, simulated=False):
+    def __init__(self, playerstates, card_counts, turn, simulated=False):
         self.playerstates = playerstates
         self.card_counts = card_counts
         self.turn = turn
@@ -404,7 +418,7 @@ class Game(object):
         the game state where it is the next player's turn.
         """
         log.info("Player %d: %s" % ((self.player_turn+1), self.current_player().name))
-        log.info(" ", self.card_counts[province], "provinces left")
+        log.info("%d provinces left" % self.card_counts[province])
         
         # Run AI hooks that need to happen before the turn.
         self.current_player().before_turn(self)
@@ -498,10 +512,10 @@ class BuyDecision(Decision):
 
 class TrashDecision(Decision):
     def choices(self):
-        return [None] + list(set(self.state().cards))
+        return [None] + list(set(self.state().hand))
     def choose(self, choice):
         if choice is None:
-            return self.state()
+            return self.game
         state = self.state()
         newgame = self.game.replace_current_state(
           state.trash_card(choice))

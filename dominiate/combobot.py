@@ -47,10 +47,11 @@ baseline = np.array(
 
 class IdealistComboBot(BigMoney):
     def __init__(self, strategy):
-        BigMoney.__init__(self, 1, 2)
         self.strategy = strategy
         self.strategy_on = True
         self.strategy_complete = False
+        self.name = 'IdealistComboBot(%s)' % (strategy)
+        BigMoney.__init__(self, 1, 2)
     
     def before_turn(self, game):
         current_cards = game.state().all_cards()
@@ -116,11 +117,12 @@ class IdealistComboBot(BigMoney):
         return overall
 
 if __name__ == '__main__':
-    strategy = IdealistComboBot([(c.smithy, 2),
-                                 (c.smithy, 8),
+    strategy = IdealistComboBot([(c.chapel, 0),
+                                 (c.smithy, 2),
+                                 (c.smithy, 6),
                                  (c.festival, 0),
                                  (c.festival, 4),
                                 ])
-    strategy.setLogLevel(logging.DEBUG)
+    strategy.setLogLevel(logging.INFO)
     strategy.test()
 
