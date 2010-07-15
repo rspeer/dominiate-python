@@ -1,4 +1,6 @@
 import random
+import logging
+log = logging.getLogger(__name__)
 
 class Card(object):
     """
@@ -228,8 +230,11 @@ class PlayerState(object):
         coins and buys they end with.
         """
         for i in xrange(n):
+            # make sure there are cards to gain, even though we haven't
+            # kept track of the real game state
             game = Game([self.simulation_state(cards)],
-                        {province: 12, duchy: 12, estate: 12},
+                        {province: 12, duchy: 12, estate: 12,
+                         copper: 12, silver: 12, gold: 12},
                         simulated=True
             )
             coins, buys = game.simulate_turn()
@@ -250,6 +255,8 @@ class Game(object):
         self.playerstates = playerstates
         self.card_counts = card_counts
         self.turn = turn
+        self.player_turn = turn % len(playerstates)
+        self.round = turn // len(playerstates)
         self.simulated = simulated
 
     def copy(self):
@@ -284,7 +291,7 @@ class Game(object):
         Get the game's state for the current player. Most methods that
         do anything interesting need to do this.
         """
-        return self.playerstates[self.turn]
+        return self.playerstates[self.player_turn]
     
     def replace_current_state(self, newstate):
         """
@@ -292,7 +299,7 @@ class Game(object):
         game state from it.
         """
         newgame = self.copy()
-        newgame.playerstates[self.turn] = newstate
+        newgame.playerstates[self.player_turn] = newstate
         return newgame
 
     def change_current_state(self, **changes):
@@ -346,7 +353,7 @@ class Game(object):
         new_counts = self.card_counts.copy()
         new_counts[card] -= 1
         assert new_counts[card] >= 0
-        return Game(self.playerstates[:], new_counts, self.turn)
+        return Game(self.playerstates[:], new_counts, self.player_turn, self.simulated)
 
     def run_decisions(self):
         """
@@ -381,8 +388,6 @@ class Game(object):
         Run through all the decisions the current player has to make, and
         return the state where the player buys stuff.
         """
-        # Like the above, but instead of returning just numbers, returns the
-        # state when it's going to buy stuff.
         state = self.state()
         decisiontype = state.next_decision()
         if decisiontype is None:
@@ -398,23 +403,20 @@ class Game(object):
         Play an entire turn, including drawing cards at the end. Return
         the game state where it is the next player's turn.
         """
-        print
-        print "Player %d: %s" % ((self.turn+1), self.current_player().name)
-        print " ", self.card_counts[province], "provinces left"
+        log.info("Player %d: %s" % ((self.player_turn+1), self.current_player().name))
+        log.info(" ", self.card_counts[province], "provinces left")
         
         # Run AI hooks that need to happen before the turn.
         self.current_player().before_turn(self)
         endturn = self.run_decisions()
 
-        # Figure out whose turn it is next.
-        # TODO: check for Outpost or Possession
-        next_turn = (self.turn + 1) % self.num_players()
+        next_turn = (self.turn + 1)
 
         newgame = Game(endturn.playerstates[:], endturn.card_counts,
-                       next_turn)
+                       next_turn, self.simulated)
         # mutate the new game object since nobody cares yet
-        newgame.playerstates[self.turn] =\
-          newgame.playerstates[self.turn].next_turn()
+        newgame.playerstates[self.player_turn] =\
+          newgame.playerstates[self.player_turn].next_turn()
 
         # Run AI hooks that need to happen after the turn.
         self.current_player().after_turn(newgame)
@@ -437,10 +439,8 @@ class Game(object):
         while not game.over():
             game = game.take_turn()
         scores = [(state.player, state.score()) for state in game.playerstates]
-        print
-        print "End of game."
-        print scores
-        print
+        log.info("End of game.")
+        log.info("Scores: %s" % scores)
         return scores
 
     def __repr__(self):

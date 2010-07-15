@@ -1,5 +1,7 @@
 from game import *
 from players import *
+from basic_ai import *
+from derivbot import *
 from cards import variable_cards
 from collections import defaultdict
 import random
@@ -21,9 +23,9 @@ def compare_bots(bots):
 
 def test_game():
     player1 = SmithyBot(2, 4, 7)
-    player2 = Contrafactus(2, 3, 40)
+    player2 = HillClimbBot(2, 3, 40)
     player3 = DerivBot(100)
-    game = Game.setup([player1, player2], variable_cards)
+    game = Game.setup([player1, player2, player3], variable_cards)
     results = game.run()
     return results
 
