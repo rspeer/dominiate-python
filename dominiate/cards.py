@@ -1,5 +1,5 @@
 from game import curse, estate, duchy, province, copper, silver, gold
-from game import ActionCard, TrashDecision
+from game import Card, TrashDecision
 
 def chapel_action(game):
     stopped = False
@@ -17,7 +17,7 @@ smithy = Card('Smithy', 4, cards=3)
 festival = Card('Festival', 5, coins=2, actions=2, buys=1)
 market = Card('Market', 5, coins=1, cards=1, actions=1, buys=1)
 laboratory = Card('Laboratory', 5, cards=2, actions=1)
-chapel = ActionCard('Chapel', 2, effect=(chapel_action,))
+chapel = Card('Chapel', 2, effect=chapel_action)
 
 variable_cards = [village, smithy, festival, market, laboratory, woodcutter, chapel]
 

@@ -30,6 +30,14 @@ def test_game():
     results = game.run()
     return results
 
-if __name__ == '__main__':
-    print compare_bots([smithyComboBot, chapelComboBot, HillClimbBot(2, 3, 40)])
+def human_game():
+    player1 = smithyComboBot
+    player2 = chapelComboBot
+    player3 = HillClimbBot(2, 3, 40)
+    player4 = HumanPlayer('You')
+    game = Game.setup([player1, player2, player3, player4], variable_cards)
+    return game.run()
 
+if __name__ == '__main__':
+    #print compare_bots([smithyComboBot, chapelComboBot, HillClimbBot(2, 3, 40)])
+    human_game()

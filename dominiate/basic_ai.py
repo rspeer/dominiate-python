@@ -1,5 +1,5 @@
 from collections import defaultdict
-from game import BuyDecision, ActDecision, TrashDecision, Game, TreasureCard, ActionCard
+from game import BuyDecision, ActDecision, TrashDecision, Game
 from players import Player
 import cards as c
 import logging, sys
@@ -63,8 +63,7 @@ class BigMoney(AIPlayer):
     def make_trash_decision(self, decision):
         choices = decision.choices()
         deck = decision.state().all_cards()
-        money = sum([card.treasure for card in deck if isinstance(card, TreasureCard)])
-        money += sum([card.coins for card in deck if isinstance(card, ActionCard)])
+        money = sum([card.treasure + card.coins for card in deck])
         if c.copper in choices and money > 3:
             return c.copper
         elif decision.game.round < 10 and c.estate in choices:

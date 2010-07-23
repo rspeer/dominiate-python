@@ -10,25 +10,23 @@ class Card(object):
     To save computation, only one of each card should be constructed. Decks can
     contain many references to the same Card object.
     """
-    def __init__(self, name, cost, type, treasure=0, vp=0, coins=0, cards=0,
+    def __init__(self, name, cost, treasure=0, vp=0, coins=0, cards=0,
                  actions=0, buys=0, potionCost=0, effect=(), isAttack=False,
                  reaction=(), duration=()):
         self.name = name
         self.cost = cost
         self.potionCost = potionCost
-        if isinstance(type, list):
-            self.type = tuple(type)
-        elif isinstance(type, tuple):
-            self.type = type
-        else:
-            self.type = (type,)
         self.treasure = treasure
         self.vp = vp
         self.coins = coins
         self.cards = cards
         self.actions = actions
         self.buys = buys
-        self.effect = effect
+        self._isAttack = isAttack
+        if not isinstance(effect, (tuple, list)):
+            self.effect = (effect,)
+        else:
+            self.effect = effect
         self.reaction = reaction
         self.duration = duration
 
@@ -44,6 +42,9 @@ class Card(object):
     def isAction(self):
         return (self.coins or self.cards or self.actions or self.buys or
                 self.effect)
+
+    def isAttack(self):
+        return self._isAttack
 
     def perform_action(self, game):
         assert self.isAction()
@@ -211,7 +212,7 @@ class PlayerState(object):
     def actionable(self):
         """Are there actions left to take with this hand?"""
         return (self.actions > 0 
-                and any(isinstance(c, ActionCard) for c in self.hand))
+                and any(c.isAction() for c in self.hand))
 
     def buyable(self):
         """Can this hand still buy a card?"""
@@ -489,8 +490,7 @@ class Decision(object):
 
 class ActDecision(Decision):
     def choices(self):
-        return [None] + [card for card in self.state().hand if isinstance(card,
-                ActionCard)]
+        return [None] + [card for card in self.state().hand if card.isAction()]
     def choose(self, card):
         self.game.log.info("%s plays %s" % (self.player().name, card))
         if card is None:
