@@ -116,6 +116,11 @@ class IdealistComboBot(BigMoney):
         self.log.info('Overall gain: %s' % overall)
         return overall
 
+smithyComboBot = IdealistComboBot([(c.smithy, 2), (c.smithy, 6)])
+smithyComboBot.name = 'smithyComboBot'
+
+
+
 if __name__ == '__main__':
     strategy = IdealistComboBot([(c.chapel, 0),
                                  (c.smithy, 2),

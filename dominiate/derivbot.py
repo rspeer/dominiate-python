@@ -17,6 +17,7 @@ class DerivBot(HillClimbBot):
         self.k = k
         self.name = "DerivBot(%d)" % k
         self.samples = 0
+        HillClimbBot.__init__(self, 1, 2)
     def buy_value(self, coins, buys, order):
         value = 0
         for j in xrange(buys):
@@ -41,7 +42,7 @@ class DerivBot(HillClimbBot):
             prev_order = sorted(self.values[deriv-1].items(), key=lambda x: -x[1])
             for iter in xrange(self.k):
                 game = Game([game.state().simulation_state()],
-                             game.card_counts, simulated=True)
+                             game.card_counts, 0, simulated=True)
                 state = game.simulate_partial_turn()
                 hand = state.tableau + state.hand
                 

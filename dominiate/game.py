@@ -265,7 +265,7 @@ VICTORY_CARDS = {
 }
 
 class Game(object):
-    def __init__(self, playerstates, card_counts, turn, simulated=False):
+    def __init__(self, playerstates, card_counts, turn=0, simulated=False):
         self.playerstates = playerstates
         self.card_counts = card_counts
         self.turn = turn
