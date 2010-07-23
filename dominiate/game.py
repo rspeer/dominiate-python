@@ -121,6 +121,9 @@ class PlayerState(object):
     def hand_value(self):
         """How many coins can the player spend?"""
         return self.coins + sum(card.treasure for card in self.hand)
+
+    def hand_size(self):
+        return len(self.hand)
     
     def draw(self, n=1):
         """
@@ -197,6 +200,17 @@ class PlayerState(object):
         does that when it is chosen in an ActDecision.
         """
         return self.play_card(card).change(delta_actions=-1)
+
+    def discard_card(self, card):
+        """
+        Discard a single card from the hand.
+        """
+        index = list(self.hand).index(card)
+        newhand = self.hand[:index] + self.hand[index+1:]
+        return PlayerState(
+          self.player, newhand, self.drawpile, self.discard+(card,),
+          self.tableau, self.actions, self.buys, self.coins
+        )
 
     def trash_card(self, card):
         """
@@ -533,8 +547,14 @@ class BuyDecision(Decision):
           (self.buys(), self.coins())
 
 class TrashDecision(Decision):
+    def __init__(self, allow_none=True):
+        self.allow_none = allow_none
+        Decision.__init__(self)
     def choices(self):
-        return [None] + list(set(self.state().hand))
+        if self.allow_none:
+            return [None] + list(set(self.state().hand))
+        else:
+            return list(set(self.state().hand))
     def choose(self, choice):
         self.game.log.info("%s trashes %s" % (self.player().name, choice))
         if choice is None:
@@ -545,4 +565,24 @@ class TrashDecision(Decision):
         return newgame
     def __str__(self):
         return "TrashDecision" + str(self.state().hand)
+
+class DiscardDecision(Decision):
+    def __init__(self, allow_none=True):
+        self.allow_none = allow_none
+        Decision.__init__(self)
+    def choices(self):
+        if self.allow_none:
+            return [None] + list(set(self.state().hand))
+        else:
+            return list(set(self.state().hand))
+    def choose(self, choice):
+        self.game.log.info("%s discards %s" % (self.player().name, choice))
+        if choice is None:
+            return self.game
+        state = self.state()
+        newgame = self.game.replace_current_state(
+          state.discard_card(choice))
+        return newgame
+    def __str__(self):
+        return "DiscardDecision" + str(self.state().hand)
 
