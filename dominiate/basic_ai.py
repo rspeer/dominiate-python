@@ -52,7 +52,7 @@ class BigMoney(AIPlayer):
     
     def act_priority(self, decision, choice):
         if choice is None: return 0
-        return (100*choice.actions + 10*(choice.pluscoins + choice.cards) +
+        return (100*choice.actions + 10*(choice.coins + choice.cards) +
                     choice.buys) + 1
     
     def make_act_decision(self, decision):
@@ -63,8 +63,8 @@ class BigMoney(AIPlayer):
     def make_trash_decision(self, decision):
         choices = decision.choices()
         deck = decision.state().all_cards()
-        money = sum([card.coins for card in deck if isinstance(card, TreasureCard)])
-        money += sum([card.pluscoins for card in deck if isinstance(card, ActionCard)])
+        money = sum([card.treasure for card in deck if isinstance(card, TreasureCard)])
+        money += sum([card.coins for card in deck if isinstance(card, ActionCard)])
         if c.copper in choices and money > 3:
             return c.copper
         elif decision.game.round < 10 and c.estate in choices:

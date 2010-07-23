@@ -10,12 +10,54 @@ class Card(object):
     To save computation, only one of each card should be constructed. Decks can
     contain many references to the same Card object.
     """
-    def __init__(self, name, cost):
+    def __init__(self, name, cost, type, treasure=0, vp=0, coins=0, cards=0,
+                 actions=0, buys=0, potionCost=0, effect=(), isAttack=False,
+                 reaction=(), duration=()):
         self.name = name
         self.cost = cost
-        self.coins = 0
-        self.vp = 0
-        self.steps = ()
+        self.potionCost = potionCost
+        if isinstance(type, list):
+            self.type = tuple(type)
+        elif isinstance(type, tuple):
+            self.type = type
+        else:
+            self.type = (type,)
+        self.treasure = treasure
+        self.vp = vp
+        self.coins = coins
+        self.cards = cards
+        self.actions = actions
+        self.buys = buys
+        self.effect = effect
+        self.reaction = reaction
+        self.duration = duration
+
+    def isVictory(self):
+        return self.vp > 0
+
+    def isCurse(self):
+        return self.vp < 0
+
+    def isTreasure(self):
+        return self.treasure > 0
+
+    def isAction(self):
+        return (self.coins or self.cards or self.actions or self.buys or
+                self.effect)
+
+    def perform_action(self, game):
+        assert self.isAction()
+        if self.cards:
+            game = game.current_draw_cards(self.cards)
+        if (self.coins or self.actions or self.buys):
+            game = game.change_current_state(
+              delta_coins=self.coins,
+              delta_actions=self.actions,
+              delta_buys=self.buys
+            )
+        for action in self.effect:
+            game = action(game)
+        return game
 
     def __str__(self): return self.name
     def __cmp__(self, other):
@@ -26,52 +68,15 @@ class Card(object):
         return hash(self.name)
     def __repr__(self): return self.name
 
-class TreasureCard(Card):
-    def __init__(self, name, cost, coins):
-        Card.__init__(self, name, cost)
-        self.coins = coins
-
-class VictoryCard(Card):
-    def __init__(self, name, cost, vp):
-        Card.__init__(self, name, cost)
-        self.vp = vp
-
-class CurseCard(Card):
-    def __init__(self, name, cost, vp):
-        Card.__init__(self, name, cost)
-        self.vp = vp
-
-class ActionCard(Card):
-    def __init__(self, name, cost, steps, coins=0, cards=0, actions=0, buys=0):
-        Card.__init__(self, name, cost)
-        self.steps = steps
-        self.cards = cards
-        self.actions = actions
-        self.pluscoins = coins
-        self.buys = buys
-
-    def perform_action(self, game):
-        if self.cards:
-            game = game.current_draw_cards(self.cards)
-        if (self.pluscoins or self.actions or self.buys):
-            game = game.change_current_state(
-              delta_coins=self.pluscoins,
-              delta_actions=self.actions,
-              delta_buys=self.buys
-            )
-        for action in self.steps:
-            game = action(game)
-        return game
-
 # define the cards that are in every game
-curse    = CurseCard('Curse', 0, -1)
-estate   = VictoryCard('Estate', 2, 1)
-duchy    = VictoryCard('Duchy', 5, 3)
-province = VictoryCard('Province', 8, 6)
+curse    = Card('Curse', 0, vp=-1)
+estate   = Card('Estate', 2, vp=1)
+duchy    = Card('Duchy', 5, vp=3)
+province = Card('Province', 8, vp=6)
 
-copper = TreasureCard('Copper', 0, 1)
-silver = TreasureCard('Silver', 3, 2)
-gold   = TreasureCard('Gold', 6, 3)
+copper = Card('Copper', 0, treasure=1)
+silver = Card('Silver', 3, treasure=2)
+gold   = Card('Gold', 6, treasure=3)
 
 class PlayerState(object):
     """
@@ -114,7 +119,7 @@ class PlayerState(object):
 
     def hand_value(self):
         """How many coins can the player spend?"""
-        return self.coins + sum(card.coins for card in self.hand)
+        return self.coins + sum(card.treasure for card in self.hand)
     
     def draw(self, n=1):
         """
