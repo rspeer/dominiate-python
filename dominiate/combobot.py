@@ -120,17 +120,25 @@ class IdealistComboBot(BigMoney):
         self.log.info('Overall gain: %s' % overall)
         return overall
 
-smithyComboBot = IdealistComboBot([(c.smithy, 2), (c.smithy, 6)],
+class ComboBot(IdealistComboBot):
+    def buy_priority_order(self, decision):
+        if self.strategy_complete:
+            return BigMoney.buy_priority_order(self, decision)
+        else:
+            return [None, c.silver] + self.strategy_priority + [c.gold, c.province]
+
+
+smithyComboBot = ComboBot([(c.smithy, 2), (c.smithy, 6)],
                    name='smithyComboBot')
 
-chapelComboBot = IdealistComboBot([(c.chapel, 0),
-                                   (c.laboratory, 0),
-                                   (c.laboratory, 0),
-                                   (c.laboratory, 0),
-                                   (c.market, 0),
-                                  ], name='chapelComboBot')
-chapelComboBot2 = IdealistComboBot([(c.chapel, 0), (c.smithy, 2), (c.smithy, 6),
-                                    (c.festival, 0), (c.festival, 4)],
+chapelComboBot = ComboBot([(c.chapel, 0),
+                           (c.laboratory, 0),
+                           (c.laboratory, 0),
+                           (c.laboratory, 0),
+                           (c.market, 0),
+                          ], name='chapelComboBot')
+chapelComboBot2 = ComboBot([(c.chapel, 0), (c.smithy, 2), (c.smithy, 6),
+                            (c.festival, 0), (c.festival, 4)],
                    name='chapelComboBot2')
 
 if __name__ == '__main__':
