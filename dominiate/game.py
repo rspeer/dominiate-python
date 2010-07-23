@@ -1,6 +1,6 @@
 import random
 import logging
-log = logging.getLogger(__name__)
+mainLog = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARN)
 
 class Card(object):
@@ -272,6 +272,14 @@ class Game(object):
         self.player_turn = turn % len(playerstates)
         self.round = turn // len(playerstates)
         self.simulated = simulated
+        logid = 'Game'
+        if self.simulated:
+            logid = 'Simulation'
+        self.log = logging.getLogger(logid)
+        if self.simulated:
+            self.log.setLevel(logging.WARN)
+        else:
+            self.log.setLevel(logging.INFO)
 
     def copy(self):
         "Make an exact copy of this game state."
@@ -282,7 +290,7 @@ class Game(object):
         return len(self.playerstates)
 
     @staticmethod
-    def setup(players, var_cards=()):
+    def setup(players, var_cards=(), simulated=False):
         "Set up the game."
         counts = {
             estate: VICTORY_CARDS[len(players)],
@@ -296,8 +304,8 @@ class Game(object):
             counts[card] = 10
 
         playerstates = [PlayerState.initial_state(p) for p in players]
-        return Game(playerstates, counts,
-                    turn=random.choice(xrange(len(players))))
+        random.shuffle(playerstates)
+        return Game(playerstates, counts, turn=0, simulated=simulated)
 
 
     def state(self):
@@ -417,8 +425,13 @@ class Game(object):
         Play an entire turn, including drawing cards at the end. Return
         the game state where it is the next player's turn.
         """
-        log.info("Player %d: %s" % ((self.player_turn+1), self.current_player().name))
-        log.info("%d provinces left" % self.card_counts[province])
+        self.log.info("")
+        self.log.info("Round %d / player %d: %s" % (
+          (self.round + 1),
+          (self.player_turn+1), self.current_player().name
+        ))
+
+        self.log.info("%d provinces left" % self.card_counts[province])
         
         # Run AI hooks that need to happen before the turn.
         self.current_player().before_turn(self)
@@ -453,8 +466,8 @@ class Game(object):
         while not game.over():
             game = game.take_turn()
         scores = [(state.player, state.score()) for state in game.playerstates]
-        log.info("End of game.")
-        log.info("Scores: %s" % scores)
+        self.log.info("End of game.")
+        self.log.info("Scores: %s" % scores)
         return scores
 
     def __repr__(self):
@@ -466,12 +479,15 @@ class Decision(object):
         self.game = game
     def state(self):
         return self.game.state()
+    def player(self):
+        return self.game.current_player()
 
 class ActDecision(Decision):
     def choices(self):
         return [None] + [card for card in self.state().hand if isinstance(card,
                 ActionCard)]
     def choose(self, card):
+        self.game.log.info("%s plays %s" % (self.player().name, card))
         if card is None:
             newgame = self.game.change_current_state(
               delta_actions=-self.state().actions
@@ -494,6 +510,7 @@ class BuyDecision(Decision):
         value = self.coins()
         return [None] + [card for card in self.game.card_choices() if card.cost <= value]
     def choose(self, card):
+        self.game.log.info("%s buys %s" % (self.player().name, card))
         state = self.state()
         if card is None:
             newgame = self.game.change_current_state(
@@ -514,6 +531,7 @@ class TrashDecision(Decision):
     def choices(self):
         return [None] + list(set(self.state().hand))
     def choose(self, choice):
+        self.game.log.info("%s trashes %s" % (self.player().name, choice))
         if choice is None:
             return self.game
         state = self.state()

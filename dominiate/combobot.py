@@ -46,11 +46,14 @@ baseline = np.array(
 )
 
 class IdealistComboBot(BigMoney):
-    def __init__(self, strategy):
+    def __init__(self, strategy, name=None):
         self.strategy = strategy
         self.strategy_on = True
         self.strategy_complete = False
-        self.name = 'IdealistComboBot(%s)' % (strategy)
+        if name is None:
+            self.name = 'IdealistComboBot(%s)' % (strategy)
+        else:
+            self.name = name
         BigMoney.__init__(self, 1, 2)
     
     def before_turn(self, game):
@@ -70,6 +73,7 @@ class IdealistComboBot(BigMoney):
 
         priority.sort(key=lambda card: (needed[card], card.cost))
         self.strategy_priority = priority
+        self.log.debug('Strategy: %s' % self.strategy_priority)
         self.strategy_on = bool(priority)
         self.strategy_complete = not (priority or pending)
     
@@ -77,7 +81,7 @@ class IdealistComboBot(BigMoney):
         if self.strategy_complete:
             return BigMoney.buy_priority_order(self, decision)
         else:
-            return [None, c.silver, c.gold] + self.strategy_priority
+            return [None, c.silver, c.gold, c.province] + self.strategy_priority
 
     def make_buy_decision(self, decision):
         choices = decision.choices()
@@ -87,14 +91,14 @@ class IdealistComboBot(BigMoney):
     def test(self):
         improvements = np.zeros((30,))
         counts = np.zeros((30,), dtype='int32')
-        for iteration in xrange(1000):
-            game = Game.setup([self], c.variable_cards)
-            game.simulated=True
+        for iteration in xrange(100):
+            game = Game.setup([self], c.variable_cards, simulated=False)
             turn_count = 0
             # Find a state where the strategy is done and the deck is
             # about to be shuffled
-            while not (game.current_player().strategy_complete and 
-                       len(game.state().drawpile) < 5):
+            while not (game.card_counts[c.province] <= 1 or
+                       (game.current_player().strategy_complete and 
+                        len(game.state().drawpile) < 5)):
                 game = game.take_turn()
                 turn_count += 1
                 assert game.round == turn_count
@@ -116,18 +120,21 @@ class IdealistComboBot(BigMoney):
         self.log.info('Overall gain: %s' % overall)
         return overall
 
-smithyComboBot = IdealistComboBot([(c.smithy, 2), (c.smithy, 6)])
-smithyComboBot.name = 'smithyComboBot'
+smithyComboBot = IdealistComboBot([(c.smithy, 2), (c.smithy, 6)],
+                   name='smithyComboBot')
 
-
+chapelComboBot = IdealistComboBot([(c.chapel, 0),
+                                   (c.laboratory, 0),
+                                   (c.laboratory, 0),
+                                   (c.laboratory, 0),
+                                   (c.market, 0),
+                                  ], name='chapelComboBot')
+chapelComboBot2 = IdealistComboBot([(c.chapel, 0), (c.smithy, 2), (c.smithy, 6),
+                                    (c.festival, 0), (c.festival, 4)],
+                   name='chapelComboBot2')
 
 if __name__ == '__main__':
-    strategy = IdealistComboBot([(c.chapel, 0),
-                                 (c.smithy, 2),
-                                 (c.smithy, 6),
-                                 (c.festival, 0),
-                                 (c.festival, 4),
-                                ])
+    strategy = chapelComboBot
     strategy.setLogLevel(logging.INFO)
     strategy.test()
 

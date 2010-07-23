@@ -1,5 +1,5 @@
 from collections import defaultdict
-from game import BuyDecision, ActDecision, TrashDecision, Game, TreasureCard
+from game import BuyDecision, ActDecision, TrashDecision, Game, TreasureCard, ActionCard
 from players import Player
 import cards as c
 import logging, sys
@@ -13,16 +13,10 @@ class AIPlayer(Player):
         self.log.debug("Decision: %s" % decision)
         if isinstance(decision, BuyDecision):
             choice = self.make_buy_decision(decision)
-            if not decision.game.simulated:
-                self.log.info("I buy %s" % (choice))
         elif isinstance(decision, ActDecision):
             choice = self.make_act_decision(decision)
-            if not decision.game.simulated:
-                self.log.info("I play %s" % choice)
         elif isinstance(decision, TrashDecision):
             choice = self.make_trash_decision(decision)
-            if not decision.game.simulated:
-                self.log.info("I trash %s" % choice)
         else:
             raise NotImplementedError
         return decision.choose(choice)
@@ -70,6 +64,7 @@ class BigMoney(AIPlayer):
         choices = decision.choices()
         deck = decision.state().all_cards()
         money = sum([card.coins for card in deck if isinstance(card, TreasureCard)])
+        money += sum([card.pluscoins for card in deck if isinstance(card, ActionCard)])
         if c.copper in choices and money > 3:
             return c.copper
         elif decision.game.round < 10 and c.estate in choices:
@@ -124,7 +119,7 @@ class HillClimbBot(BigMoney):
 
         # gold is better than it seems
         if card == c.gold: total += self.simulation_steps/2
-        print card, ":", total
+        self.log.debug("%s: %s" % (card, total))
         return total
     
     def make_buy_decision(self, decision):

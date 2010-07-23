@@ -1,7 +1,7 @@
 from game import *
 from players import *
 from basic_ai import *
-from derivbot import *
+from combobot import *
 from cards import variable_cards
 from collections import defaultdict
 import random
@@ -22,14 +22,14 @@ def compare_bots(bots):
     return scores
 
 def test_game():
-    player1 = SmithyBot(2, 4, 7)
-    player2 = HillClimbBot(2, 3, 40)
-    player3 = DerivBot(100)
+    player1 = smithyComboBot
+    player2 = chapelComboBot
+    player3 = HillClimbBot(2, 3, 40)
+    player2.setLogLevel(logging.DEBUG)
     game = Game.setup([player1, player2, player3], variable_cards)
     results = game.run()
     return results
 
 if __name__ == '__main__':
-    #print compare_bots([SmithyBot(2, 4, 7), Contrafactus(2, 3, 40)])
-    print test_game()
+    print compare_bots([smithyComboBot, chapelComboBot, HillClimbBot(2, 3, 40)])
 
