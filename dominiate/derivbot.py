@@ -48,7 +48,7 @@ class DerivBot(HillClimbBot):
                 
                 # How much is the hand worth without changing anything?
                 actual_value = 0
-                for coins, buys in state.simulate(1, hand):
+                for coins, buys in state.simulate_hands(1, hand):
                     actual_value = self.buy_value(coins, buys, prev_order)
                 if coins >= 8:
                     avg_provinces += 1.0 / self.k / 2
@@ -61,7 +61,7 @@ class DerivBot(HillClimbBot):
 
                         # Only one simulation step will be necessary, most of the time.
                         # The only variance comes in if we draw extra cards.
-                        for coins, buys in state.simulate(1, newhand):
+                        for coins, buys in state.simulate_hands(1, newhand):
                             value = self.buy_value(coins, buys, prev_order) - actual_value
                             self.values[deriv][card] += float(value) / self.k / n
                 # TODO: take into account cards you gain/trash

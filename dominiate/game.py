@@ -3,6 +3,7 @@ import logging
 mainLog = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARN)
 
+INF = ()
 class Card(object):
     """
     Represents a class of card.
@@ -248,6 +249,16 @@ class PlayerState(object):
         """How many points is this deck worth?"""
         return sum(card.vp for card in self.all_cards())
 
+    def simulate(self):
+        return self.simulation_state()
+
+    def simulate_from_here(self):
+        newdraw = list(self.drawpile)
+        random.shuffle(newdraw)
+        return PlayerState(self.player, self.hand, tuple(newdraw),
+                           self.discard, self.tableau, self.actions,
+                           self.buys, self.coins)
+
     def simulation_state(self, cards=()):
         """
         Get a state with a freshly-shuffled deck, a new turn, and certain cards
@@ -258,7 +269,7 @@ class PlayerState(object):
                             1, 1, 0)
         return state.draw(5)
 
-    def simulate(self, n=100, cards=()):
+    def simulate_hands(self, n=100, cards=()):
         """
         Simulate n hands with certain cards in them, yielding the number of
         coins and buys they end with.
@@ -305,9 +316,6 @@ class Game(object):
         "Make an exact copy of this game state."
         return Game(self.playerstates[:], self.card_counts, self.turn,
                     self.simulated)
-
-    def num_players(self):
-        return len(self.playerstates)
 
     @staticmethod
     def setup(players, var_cards=(), simulated=False):
@@ -408,13 +416,24 @@ class Game(object):
         decision = decisiontype(self)
         newgame = self.current_player().make_decision(decision)
         return newgame.run_decisions()
-
+    
+    def simulated_copy(self):
+        return Game(
+            [state.simulated_from_here() if state is self.state()
+                                         else state.simulate()
+             for state in self.playerstates],
+            self.card_counts,
+            self.turn,
+            simulated=True
+        )
+        
     def simulate_turn(self):
         """
         Run through all the decisions the current player has to make, and
         return the number of coins and buys they end up with. Useful for
         the BigMoney strategy.
         """
+        if not self.simulated: self = self.simulated_copy()
         state = self.state()
         decisiontype = state.next_decision()
         if decisiontype is None:
@@ -430,6 +449,7 @@ class Game(object):
         Run through all the decisions the current player has to make, and
         return the state where the player buys stuff.
         """
+        if not self.simulated: self = self.simulated_copy()
         state = self.state()
         decisiontype = state.next_decision()
         if decisiontype is None:
@@ -493,7 +513,6 @@ class Game(object):
     def __repr__(self):
         return 'Game%s[%s]' % (str(self.playerstates), str(self.turn))
 
-
 class Decision(object):
     def __init__(self, game):
         self.game = game
@@ -501,6 +520,12 @@ class Decision(object):
         return self.game.state()
     def player(self):
         return self.game.current_player()
+
+class MultiDecision(Decision):
+    def __init__(self, game, min=0, max=INF):
+        self.min=min
+        self.max=max
+        Decision.__init__(self, game)
 
 class ActDecision(Decision):
     def choices(self):
@@ -546,43 +571,31 @@ class BuyDecision(Decision):
         return "BuyDecision (%d buys, %d coins)" %\
           (self.buys(), self.coins())
 
-class TrashDecision(Decision):
-    def __init__(self, allow_none=True):
-        self.allow_none = allow_none
-        Decision.__init__(self)
+class TrashDecision(MultiDecision):
     def choices(self):
-        if self.allow_none:
-            return [None] + list(set(self.state().hand))
-        else:
-            return list(set(self.state().hand))
-    def choose(self, choice):
-        self.game.log.info("%s trashes %s" % (self.player().name, choice))
-        if choice is None:
-            return self.game
-        state = self.state()
-        newgame = self.game.replace_current_state(
-          state.trash_card(choice))
-        return newgame
-    def __str__(self):
-        return "TrashDecision" + str(self.state().hand)
+        return sorted(list(self.state().hand))
 
-class DiscardDecision(Decision):
-    def __init__(self, allow_none=True):
-        self.allow_none = allow_none
-        Decision.__init__(self)
-    def choices(self):
-        if self.allow_none:
-            return [None] + list(set(self.state().hand))
-        else:
-            return list(set(self.state().hand))
-    def choose(self, choice):
-        self.game.log.info("%s discards %s" % (self.player().name, choice))
-        if choice is None:
-            return self.game
+    def choose(self, choices):
+        self.game.log.info("%s trashes %s" % (self.player().name, choices))
         state = self.state()
-        newgame = self.game.replace_current_state(
-          state.discard_card(choice))
-        return newgame
+        for card in choices:
+            state = state.trash_card(card)
+        return self.game.replace_current_state(state)
+
+    def __str__(self):
+        return "TrashDecision(%s, %s, %s)" % (self.state().hand, self.min, self.max)
+
+class DiscardDecision(MultiDecision):
+    def choices(self):
+        return sorted(list(self.state().hand))
+    
+    def choose(self, choices):
+        self.game.log.info("%s discards %s" % (self.player().name, choices))
+        state = self.state()
+        for card in choices:
+            state = state.discard_card(card)
+        return self.game.replace_current_state(state)
+    
     def __str__(self):
         return "DiscardDecision" + str(self.state().hand)
 
