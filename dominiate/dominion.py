@@ -35,7 +35,7 @@ def human_game():
     player2 = chapelComboBot
     player3 = HillClimbBot(2, 3, 40)
     player4 = HumanPlayer('You')
-    game = Game.setup([player1, player2, player3, player4], variable_cards)
+    game = Game.setup([player1, player2, player3, player4], variable_cards[-10:])
     return game.run()
 
 if __name__ == '__main__':

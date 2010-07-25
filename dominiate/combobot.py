@@ -15,7 +15,6 @@ from basic_ai import BigMoney
 from game import Game
 import cards as c
 import numpy as np
-import logging, sys
 
 def deck_value(deck):
     return sum([card.cost for card in deck]) - len(deck)

@@ -4,6 +4,7 @@ mainLog = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARN)
 
 INF = ()
+
 class Card(object):
     """
     Represents a class of card.
@@ -13,17 +14,24 @@ class Card(object):
     """
     def __init__(self, name, cost, treasure=0, vp=0, coins=0, cards=0,
                  actions=0, buys=0, potionCost=0, effect=(), isAttack=False,
-                 reaction=(), duration=()):
+                 isDefense=False, reaction=(), duration=()):
         self.name = name
         self.cost = cost
         self.potionCost = potionCost
-        self.treasure = treasure
-        self.vp = vp
+        if isinstance(treasure, int):
+            self.treasure = treasure
+        else:
+            self.treasure = property(treasure)
+        if isinstance(vp, int):
+            self.vp = vp
+        else:
+            self.vp = property(vp)
         self.coins = coins
         self.cards = cards
         self.actions = actions
         self.buys = buys
         self._isAttack = isAttack
+        self._isDefense = isDefense
         if not isinstance(effect, (tuple, list)):
             self.effect = (effect,)
         else:
@@ -46,6 +54,9 @@ class Card(object):
 
     def isAttack(self):
         return self._isAttack
+
+    def isDefense(self):
+        return self._isDefense
 
     def perform_action(self, game):
         assert self.isAction()
@@ -103,14 +114,18 @@ class PlayerState(object):
         return PlayerState(player, hand=(), drawpile=(),
         discard=(copper,)*7 + (estate,)*3, tableau=()).next_turn()
     
-    def change(self, delta_actions=0, delta_buys=0, delta_coins=0):
+    def change(self, delta_actions=0, delta_buys=0, delta_cards=0, delta_coins=0):
         """
-        Change the number of actions, buys, or coins available on this
+        Change the number of actions, buys, cards, or coins available on this
         turn.
         """
-        return PlayerState(self.player, self.hand, self.drawpile, self.discard,
+        state= PlayerState(self.player, self.hand, self.drawpile, self.discard,
                            self.tableau, self.actions+delta_actions,
                            self.buys+delta_buys, self.coins+delta_coins)
+        assert delta_cards >= 0
+        if delta_cards > 0:
+            return state.draw(delta_cards)
+        else: return state
     
     def deck_size(self):
         return len(self.all_cards())
@@ -125,7 +140,16 @@ class PlayerState(object):
 
     def hand_size(self):
         return len(self.hand)
+
+    def is_defended(self):
+        return any(x.isDefense() for x in self.hand)
     
+    def get_reactions(self):
+        """
+        TODO: implement complex reactions like Secret Chamber
+        """
+        return []
+
     def draw(self, n=1):
         """
         Returns a new PlayerState in which n cards have been drawn (shuffling
@@ -343,25 +367,6 @@ class Game(object):
         """
         return self.playerstates[self.player_turn]
     
-    def replace_current_state(self, newstate):
-        """
-        Do something with the current player's state and make a new overall
-        game state from it.
-        """
-        newgame = self.copy()
-        newgame.playerstates[self.player_turn] = newstate
-        return newgame
-
-    def change_current_state(self, **changes):
-        """
-        Make a numerical change to the current state, such as adding a buy
-        or using up an action. The changes are expressed as deltas from the
-        current state.
-        
-        Drawing cards, however, is done with the current_draw_cards method.
-        """
-        return self.replace_current_state(self.state().change(**changes))
-
     def current_play_card(self, card):
         """
         Play a card in the current state without decrementing the action count.
@@ -405,6 +410,88 @@ class Game(object):
         assert new_counts[card] >= 0
         return Game(self.playerstates[:], new_counts, self.player_turn, self.simulated)
 
+    def replace_states(self, newstates):
+        """
+        Do something with the current player's state and make a new overall
+        game state from it.
+        """
+        newgame = self.copy()
+        newgame.playerstates = newstates
+        return newgame
+    
+    def replace_current_state(self, newstate):
+        """
+        Do something with the current player's state and make a new overall
+        game state from it.
+        """
+        newgame = self.copy()
+        newgame.playerstates[self.player_turn] = newstate
+        return newgame
+    
+    def change_current_state(self, **changes):
+        """
+        Make a numerical change to the current player's state, such as adding
+        a buy or using up an action. The changes are expressed as deltas from
+        the current state.
+        """
+        return self.replace_current_state(self.state().change(**changes))
+
+    def change_other_states(self, **changes):
+        """
+        Make a numerical change to the states of all non-current players, the
+        same way as change_current_state.
+        """
+        newgame = self.copy()
+        for i in xrange(self.num_players()):
+            if i == self.player_turn: continue
+            newgame.playerstates[i] = newgame.playerstates[i].change(**changes)
+        return newgame
+
+    def transform_other_states(self, func, attack=False):
+        """
+        Apply a function to all other states, with no decisions to be made.
+
+        This does not work for attacks, because other players might have a
+        counter that requires them to make a decision. Implement attacks using
+        the attack_with_decision method instead.
+        """
+        newgame = self.copy()
+        for i in xrange(self.num_players()):
+            if i == self.player_turn: continue
+            newgame.playerstates[i] = func(newgame.playerstates[i])
+        return newgame
+    
+    def next_mini_turn(self):
+        """
+        Temporarily increase the turn counter, without doing any of the usual
+        end-of-turn mechanics. 
+        
+        This is useful when players need to make decisions in the middle of
+        another player's turn, creating what we call here a "mini-turn".
+        """
+        return Game(self.playerstates[:], self.card_counts, self.turn+1,
+                    self.simulated)
+
+    def everyone_else_makes_a_decision(self, decision_template, attack=False):
+        newgame = self.next_mini_turn()
+        while newgame.player_turn != self.player_turn:
+            if attack:
+                if newgame.state().is_defended():
+                    newgame = newgame.next_mini_turn()
+                    continue
+                reactions = newgame.state().get_reactions()
+                for reaction in reactions:
+                    newgame = reaction(newgame)
+            decision = decision_template(newgame)
+            turn = newgame.player_turn
+            game2 = newgame.current_player().make_decision(decision)
+            assert game2.player_turn == turn
+            newgame = game2.next_mini_turn()
+        return newgame
+
+    def attack_with_decision(self, decision):
+        return self.everyone_else_makes_a_decision(decision, attack=True)
+
     def run_decisions(self):
         """
         Run through all the decisions the current player has to make, and
@@ -418,6 +505,12 @@ class Game(object):
         return newgame.run_decisions()
     
     def simulated_copy(self):
+        """
+        Get a copy of this game, but with the `simulated` flag set to True
+        and no information that the current player should not have. This
+        prevents accidentally cheating when looking at the implications of
+        various actions.
+        """
         return Game(
             [state.simulated_from_here() if state is self.state()
                                          else state.simulate()
